@@ -3,6 +3,7 @@ name: Salesforce Authentication and Test Validation
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    branches: [main]
 
 jobs:
   auth-and-test-salesforce:
@@ -30,13 +31,20 @@ jobs:
       - name: Create test-results directory
         run: mkdir -p test-results
 
+      # - name: Run all Apex tests and save JSON result
+      #   run: |
+      #     sf apex test run --test-level RunLocalTests \
+      #       --wait 20 \
+      #       --target-org my-org \
+      #       --json > test-results/test-result.json
+      
       - name: Run all Apex tests and save JSON result
         run: |
-          sf apex test run --test-level RunLocalTests \
+          sf apex test run --test-level RunAllTestsInOrg \
             --wait 20 \
             --target-org my-org \
             --json > test-results/test-result.json
-      
+
       - name: Debug - Show test result JSON
         run: cat test-results/test-result.json
 
