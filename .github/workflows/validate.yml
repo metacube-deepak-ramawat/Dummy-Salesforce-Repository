@@ -36,6 +36,10 @@ jobs:
             --wait 20 \
             --target-org my-org \
             --json > test-results/test-result.json
+      
+      - name: Debug - Show test result JSON
+        run: cat test-results/test-result.json
+
 
       - name: Fail job if any test fails
         run: |
