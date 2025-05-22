@@ -1,0 +1,55 @@
+name: Salesforce Authentication and Test Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  auth-and-test-salesforce:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Salesforce CLI (@salesforce/cli)
+        run: npm install --global @salesforce/cli
+
+      - name: Install jq (JSON processor)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Write JWT Key from Secret
+        run: echo "${{ secrets.SF_JWT_KEY }}" > server.key
+
+      - name: Authenticate to Salesforce using JWT
+        run: |
+          sf org login jwt \
+            --client-id ${{ secrets.SF_CLIENT_ID }} \
+            --jwt-key-file server.key \
+            --username ${{ secrets.SF_USERNAME }} \
+            --instance-url ${{ secrets.SF_ORG_URL }} \
+            --set-default \
+            --alias my-org
+
+      - name: Confirm authentication
+        run: sf org list
+
+      - name: Create test-results directory
+        run: mkdir -p test-results
+
+      - name: Run all Apex tests and save JSON result
+        run: |
+          sf apex test run --test-level RunLocalTests \
+            --wait 20 \
+            --target-org my-org \
+            --json > test-results/test-result.json
+
+      - name: Fail job if any test fails
+        run: |
+          numFailures=$(jq '.result.summary.failing' test-results/test-result.json)
+          if [ "$numFailures" -gt 0 ]; then
+            echo "$numFailures test(s) failed."
+            exit 1
+          else
+            echo "All tests passed."
+          fi

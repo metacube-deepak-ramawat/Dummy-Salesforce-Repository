@@ -1,0 +1,40 @@
+name: Deploy to Salesforce on Main Merge
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Salesforce CLI (@salesforce/cli)
+        run: npm install --global @salesforce/cli
+
+      - name: Install jq (JSON processor)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Write JWT Key from Secret
+        run: echo "${{ secrets.SF_JWT_KEY }}" > server.key
+
+      - name: Authenticate to Salesforce using JWT
+        run: |
+          sf org login jwt \
+            --client-id ${{ secrets.SF_CLIENT_ID }} \
+            --jwt-key-file server.key \
+            --username ${{ secrets.SF_USERNAME }} \
+            --instance-url ${{ secrets.SF_ORG_URL }} \
+            --set-default \
+            --alias my-org
+
+      - name: Confirm authentication
+        run: sf org list
+
+      - name: Deploy source to Salesforce
+        run: |
+          sf project deploy start --wait 20 --target-org my-org --ignore-conflicts --test-level RunLocalTests
