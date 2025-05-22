@@ -33,6 +33,7 @@ jobs:
 
       - name: Confirm authentication
         run: sf org list
+        
 
       - name: Create test-results directory
         run: mkdir -p test-results
