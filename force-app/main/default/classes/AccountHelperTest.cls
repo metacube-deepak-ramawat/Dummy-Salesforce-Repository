@@ -6,7 +6,8 @@ public class AccountHelperTest {
         Test.startTest();
         Account acc = AccountHelper.createAccount(accName);
         Test.stopTest();
-        System.assertNotEquals(null, acc.Id, 'Account should be inserted');
+        // System.assertNotEquals(null, acc.Id, 'Account should be inserted');
+        System.assertEquals(null, acc.Id, 'Forcing failure: Account should not be inserted');
         System.assertEquals(accName, acc.Name, 'Account name should match');
     }
 
