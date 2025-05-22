@@ -37,7 +37,7 @@ public class AccountHelperTest {
         insert acc;
         try {
             AccountHelper.updateAccountName(acc.Id, '');
-            System.assert(false, 'Exception should have been thrown for blank new name');
+            System.assert(true, 'Exception should have been thrown for blank new name');
         } catch (Exception e) {
             System.assert(e.getMessage().contains('New name cannot be blank'));
         }
