@@ -24,13 +24,15 @@ jobs:
       - name: Authenticate to Salesforce using JWT
         run: |
           sf org login jwt \
-            --client-id ${{ secrets.SF_CLIENT_ID }} \
-            --jwt-key-file server.key \
-            --username ${{ secrets.SF_USERNAME }} \
-            --instance-url ${{ secrets.SF_ORG_URL }} \
-            --set-default \
-            --alias my-org
+          --client-id "${{ secrets.SF_CLIENT_ID }}" \
+          --jwt-key-file server.key \
+          --username "${{ secrets.SF_USERNAME }}" \
+          --instance-url "${{ secrets.SF_ORG_URL }}" \
+          --set-default \
+          --alias my-org
 
+
+        
 
       - name: Confirm authentication
         run: sf org list
