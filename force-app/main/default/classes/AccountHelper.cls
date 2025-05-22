@@ -1,7 +1,7 @@
 public with sharing class AccountHelper {
     // Method to create an Account
     public static Account createAccount(String name) {
-        // blank name check
+        // blank name check test
         if (String.isBlank(name)) {
             throw new IllegalArgumentException('Account name cannot be blank');
         }
