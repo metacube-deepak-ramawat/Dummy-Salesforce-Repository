@@ -119,18 +119,27 @@ jobs:
           cat claude_request.json
           echo ""
           
-          # Send to Claude API
-          CLAUDE_RESPONSE=$(curl -s -X POST "https://api.anthropic.com/v1/messages" \
+          RESPONSE=$(curl -s -X POST https://c08b-203-129-200-122.ngrok-free.app/analyze \
             -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" \
-            -H "anthropic-version: 2023-06-01" \
-            -d @claude_request.json)
-          
-          # Extract Claude's response
-          LLM_RESPONSE=$(echo "$CLAUDE_RESPONSE" | jq -r '.content[0].text // .error.message // "No response from Claude"')
-          
+            -d @claude_request.json")
+
           echo "=== AI ANALYSIS & SOLUTIONS ==="
-          echo "$LLM_RESPONSE"
+          # echo "$RESPONSE"
+
+
+
+          # # Send to Claude API
+          # CLAUDE_RESPONSE=$(curl -s -X POST "https://api.anthropic.com/v1/messages" \
+          #   -H "Content-Type: application/json" \
+          #   -H "x-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" \
+          #   -H "anthropic-version: 2023-06-01" \
+          #   -d @claude_request.json)
+          
+          # # Extract Claude's response
+          # LLM_RESPONSE=$(echo "$CLAUDE_RESPONSE" | jq -r '.content[0].text // .error.message // "No response from Claude"')
+          
+          # echo "=== AI ANALYSIS & SOLUTIONS ==="
+          # echo "$LLM_RESPONSE"
 
 # name: Salesforce Authentication and Test Validation
 
