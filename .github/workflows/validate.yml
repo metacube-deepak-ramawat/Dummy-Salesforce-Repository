@@ -119,7 +119,7 @@ jobs:
           cat claude_request.json
           echo ""
           
-          RESPONSE=$(curl -s -X POST https://c08b-203-129-200-122.ngrok-free.app/analyze \
+          RESPONSE=$(curl -s -X POST https://c08b-203-129-200-122.ngrok-free.app/agents/cirus/analyze \
           -H "Content-Type: application/json" \
           -d @claude_request.json)
 
