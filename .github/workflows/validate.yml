@@ -120,8 +120,9 @@ jobs:
           echo ""
           
           RESPONSE=$(curl -s -X POST https://c08b-203-129-200-122.ngrok-free.app/analyze \
-            -H "Content-Type: application/json" \
-            -d @claude_request.json")
+          -H "Content-Type: application/json" \
+          -d @claude_request.json)
+
 
           echo "=== AI ANALYSIS & SOLUTIONS ==="
           # echo "$RESPONSE"
