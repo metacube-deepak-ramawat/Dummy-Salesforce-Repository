@@ -94,39 +94,20 @@ jobs:
               )
             end
           ' test-results/deploy-validation.json)
-          
-          echo "=== ORIGINAL ERROR ==="
-          echo "$ERROR_DETAILS"
-          echo ""
-          
-          # Create properly escaped JSON payload
-          cat > claude_request.json << 'EOF'
-          {
-            "model": "claude-3-7-sonnet-20250219",
-            "max_tokens": 1000,
-            "messages": [{
-              "role": "user",
-              "content": "PLACEHOLDER_CONTENT"
-            }]
-          }
-          EOF
-          
-          # Replace placeholder with properly escaped content
-          ESCAPED_CONTENT=$(echo "$ERROR_DETAILS" | jq -Rs . | sed 's/^"//; s/"$//')
-          sed -i "s/PLACEHOLDER_CONTENT/You are a Salesforce expert. Analyze this deployment error and provide actionable solutions with specific steps to fix:\\n\\n$ESCAPED_CONTENT/" claude_request.json
-          
-          echo "=== SENDING TO CLAUDE ==="
-          cat claude_request.json
-          echo ""
-          
-          RESPONSE=$(curl -s -X POST https://c08b-203-129-200-122.ngrok-free.app/agents/cirus/analyze \
-          -H "Content-Type: application/json" \
-          -d @claude_request.json)
 
+          # Escape the error text as a JSON string
+          JSON_PAYLOAD=$(jq -n --arg error "$ERROR_DETAILS" '{ error: $error }')
+
+          echo "=== SENDING TO LLM SERVER ==="
+          echo "$JSON_PAYLOAD"
+
+          # Send the error details to your server
+          RESPONSE=$(curl -s -X POST https://c08b-203-129-200-122.ngrok-free.app/agents/cirus/analyze \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD")
 
           echo "=== AI ANALYSIS & SOLUTIONS ==="
-          # echo "$RESPONSE"
-
+          echo "$RESPONSE"
 
 
           # # Send to Claude API
