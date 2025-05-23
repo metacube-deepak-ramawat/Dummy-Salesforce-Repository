@@ -126,10 +126,6 @@ jobs:
             -H "anthropic-version: 2023-06-01" \
             -d @claude_request.json)
           
-          echo "=== RAW RESPONSE FROM CLAUDE ==="
-          echo "$CLAUDE_RESPONSE"
-          echo ""
-          
           # Extract Claude's response
           LLM_RESPONSE=$(echo "$CLAUDE_RESPONSE" | jq -r '.content[0].text // .error.message // "No response from Claude"')
           
