@@ -77,13 +77,13 @@ jobs:
       - name: Send error to LLM for analysis on failure
         if: failure()
         run: |
-          # Build error message
+          # Extract error details
           ERROR_DETAILS=$(jq -r '
             if .result.details.runTestResult.failures then
               "SALESFORCE TEST FAILURES:\n" + 
               (.result.details.runTestResult.failures[] | 
                 "❌ Test: " + .name + "\n" +
-                "   Class: " + .namespace + "." + .name + "\n" +
+                "   Class: " + (.namespace // "") + "." + .name + "\n" +
                 "   Message: " + .message + "\n" +
                 "   Stack Trace: " + (.stackTrace // "N/A") + "\n"
               )
@@ -94,39 +94,47 @@ jobs:
               )
             end
           ' test-results/deploy-validation.json)
-
-          # Print error details
+          
           echo "=== ORIGINAL ERROR ==="
           echo "$ERROR_DETAILS"
           echo ""
-
-          # Call Claude API and save raw response
-          RAW_RESPONSE=$(curl -s -X POST "https://api.anthropic.com/v1/messages" \
+          
+          # Create properly escaped JSON payload
+          cat > claude_request.json << 'EOF'
+          {
+            "model": "claude-3-7-sonnet-20250219",
+            "max_tokens": 1000,
+            "messages": [{
+              "role": "user",
+              "content": "PLACEHOLDER_CONTENT"
+            }]
+          }
+          EOF
+          
+          # Replace placeholder with properly escaped content
+          ESCAPED_CONTENT=$(echo "$ERROR_DETAILS" | jq -Rs . | sed 's/^"//; s/"$//')
+          sed -i "s/PLACEHOLDER_CONTENT/You are a Salesforce expert. Analyze this deployment error and provide actionable solutions with specific steps to fix:\\n\\n$ESCAPED_CONTENT/" claude_request.json
+          
+          echo "=== SENDING TO CLAUDE ==="
+          cat claude_request.json
+          echo ""
+          
+          # Send to Claude API
+          CLAUDE_RESPONSE=$(curl -s -X POST "https://api.anthropic.com/v1/messages" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" \
             -H "anthropic-version: 2023-06-01" \
-            -d "{
-              \"model\": \"claude-3-7-sonnet-20250219\",
-              \"max_tokens\": 10000,
-              \"messages\": [{
-                \"role\": \"user\",
-                \"content\": \"You are a Salesforce expert. Analyze this deployment error and provide actionable solutions with specific steps to fix:\\n\\n$ERROR_DETAILS\"
-              }]
-            }")
-
-          # Debug: Print raw response to log
+            -d @claude_request.json)
+          
           echo "=== RAW RESPONSE FROM CLAUDE ==="
-          echo "$RAW_RESPONSE"
-
-          # Extract text if possible
-          LLM_TEXT=$(echo "$RAW_RESPONSE" | jq -r '.content[0].text // empty')
-
+          echo "$CLAUDE_RESPONSE"
+          echo ""
+          
+          # Extract Claude's response
+          LLM_RESPONSE=$(echo "$CLAUDE_RESPONSE" | jq -r '.content[0].text // .error.message // "No response from Claude"')
+          
           echo "=== AI ANALYSIS & SOLUTIONS ==="
-          if [ -z "$LLM_TEXT" ]; then
-            echo "No response from Claude"
-          else
-            echo "$LLM_TEXT"
-          fi
+          echo "$LLM_RESPONSE"
 
 # name: Salesforce Authentication and Test Validation
 
