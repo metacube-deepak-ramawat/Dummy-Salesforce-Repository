@@ -77,7 +77,7 @@ jobs:
       - name: Send error to LLM for analysis on failure
         if: failure()
         run: |
-          # Extract error details
+          # Build error message
           ERROR_DETAILS=$(jq -r '
             if .result.details.runTestResult.failures then
               "SALESFORCE TEST FAILURES:\n" + 
@@ -94,13 +94,14 @@ jobs:
               )
             end
           ' test-results/deploy-validation.json)
-          
+
+          # Print error details
           echo "=== ORIGINAL ERROR ==="
           echo "$ERROR_DETAILS"
           echo ""
-          
-          # Send to Claude API
-          LLM_RESPONSE=$(curl -s -X POST "https://api.anthropic.com/v1/messages" \
+
+          # Call Claude API and save raw response
+          RAW_RESPONSE=$(curl -s -X POST "https://api.anthropic.com/v1/messages" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" \
             -H "anthropic-version: 2023-06-01" \
@@ -109,12 +110,23 @@ jobs:
               \"max_tokens\": 10000,
               \"messages\": [{
                 \"role\": \"user\",
-                \"content\": \"You are a Salesforce expert. Analyze this deployment error and provide actionable solutions with specific steps to fix:\n\n$ERROR_DETAILS\"
+                \"content\": \"You are a Salesforce expert. Analyze this deployment error and provide actionable solutions with specific steps to fix:\\n\\n$ERROR_DETAILS\"
               }]
-            }" | jq -r '.content[0].text // "No response from Claude"')
-          
+            }")
+
+          # Debug: Print raw response to log
+          echo "=== RAW RESPONSE FROM CLAUDE ==="
+          echo "$RAW_RESPONSE"
+
+          # Extract text if possible
+          LLM_TEXT=$(echo "$RAW_RESPONSE" | jq -r '.content[0].text // empty')
+
           echo "=== AI ANALYSIS & SOLUTIONS ==="
-          echo "$LLM_RESPONSE"
+          if [ -z "$LLM_TEXT" ]; then
+            echo "No response from Claude"
+          else
+            echo "$LLM_TEXT"
+          fi
 
 # name: Salesforce Authentication and Test Validation
 
