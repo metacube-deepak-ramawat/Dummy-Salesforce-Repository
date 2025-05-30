@@ -1,6 +1,7 @@
 public with sharing class AccountHelper {
     // Method to create an Account
     // I am adding this comment just to create a PR
+    // I am adding this comment just to create a PR
     public static Account createAccount(String name) {
         // blank name check
         if (String.isBlank(name)) {
