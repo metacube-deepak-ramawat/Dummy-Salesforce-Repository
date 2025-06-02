@@ -76,6 +76,8 @@ jobs:
 
       - name: Send error to LLM for analysis on failure
         if: failure()
+        env:
+          SLACK_ID: ${{ secrets.SLACK_ID }}
         run: |
           # Extract error details
           ERROR_DETAILS=$(jq -r '
