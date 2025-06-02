@@ -105,7 +105,9 @@ jobs:
           echo "$JSON_PAYLOAD"
 
           RESPONSE=$(curl -s -X POST https://c08b-203-129-200-122.ngrok-free.app/agents/cirus/analyze \
+          -H "Content-Type: application/json" \
           -d "$JSON_PAYLOAD")
+
 
 
           echo "=== AI ANALYSIS & SOLUTIONS ==="
