@@ -104,10 +104,7 @@ jobs:
           echo "=== SENDING TO LLM SERVER ==="
           echo "$JSON_PAYLOAD"
 
-          RESPONSE=$(curl -s -X POST https://c08b-203-129-200-122.ngrok-free.app/agents/cirus/pr-validations \
-          -H "Content-Type: application/json" \
-          -H "X-GitHub-Event: check_run" \
-          -H "X-Hub-Signature-256: dummy-signature" \
+          RESPONSE=$(curl -s -X POST https://c08b-203-129-200-122.ngrok-free.app/agents/cirus/analyze \
           -d "$JSON_PAYLOAD")
 
 
