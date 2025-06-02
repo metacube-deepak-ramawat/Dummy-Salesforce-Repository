@@ -12,6 +12,7 @@ public with sharing class AccountHelper {
         return acc;
     }
 
+    // testing new validations
     // Method to update Account name
     public static Account updateAccountName(Id accountId, String newName) {
         // blank name check - test
