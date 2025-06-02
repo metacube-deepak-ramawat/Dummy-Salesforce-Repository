@@ -105,7 +105,7 @@ jobs:
           echo "=== SENDING TO LLM SERVER ==="
           echo "$JSON_PAYLOAD"
 
-          RESPONSE=$(curl -s -X POST https://c08b-203-129-200-122.ngrok-free.app/agents/cirus/analyze \
+          RESPONSE=$(curl -s -X POST https://b4aa-203-129-200-122.ngrok-free.app/agents/cirus/analyze \
           -d "$JSON_PAYLOAD")
 
 
