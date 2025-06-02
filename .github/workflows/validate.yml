@@ -77,8 +77,7 @@ jobs:
       - name: Send error to LLM for analysis on failure
         if: failure()
         env:
-          # SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
-          SLACK_CHANNEL_ID: "C08N5HA85U2"
+          SLACK_ID: "C08N5HA85U2"
         run: |
           # Extract error details
           ERROR_DETAILS=$(jq -r '
@@ -98,14 +97,16 @@ jobs:
             end
           ' test-results/deploy-validation.json)
 
-           # Escape the error text as a JSON string and add SLACK_ID
-           #  Test
-          JSON_PAYLOAD=$(jq -n --arg error "$ERROR_DETAILS" --arg slack_channel_id "$SLACK_CHANNEL_ID" '{ error: $error, slack_channel_id: $slack_channel_id }')
+          # Escape the error text as a JSON string
+          JSON_PAYLOAD=$(jq -n --arg error "$ERROR_DETAILS" --arg slack_id "$SLACK_ID" '{ error: $error, slack_id: $slack_id }')
 
           echo "=== SENDING TO LLM SERVER ==="
           echo "$JSON_PAYLOAD"
 
-          RESPONSE=$(curl -s -X POST "https://b4aa-203-129-200-122.ngrok-free.app/agents/cirus/analyze" -H "Content-Type: application/json" -d "$JSON_PAYLOAD")
+          # Send the error details to your server
+          RESPONSE=$(curl -s -X POST https://b4aa-203-129-200-122.ngrok-free.app/agents/cirus/analyze \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD")
 
           echo "=== AI ANALYSIS & SOLUTIONS ==="
           echo "$RESPONSE"
