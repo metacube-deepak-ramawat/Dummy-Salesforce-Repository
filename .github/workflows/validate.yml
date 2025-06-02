@@ -98,7 +98,7 @@ jobs:
           ' test-results/deploy-validation.json)
 
            # Escape the error text as a JSON string and add SLACK_ID
-          JSON_PAYLOAD=$(jq -n --arg error "$ERROR_DETAILS" --arg slack_channel_id "$SLACK_CHANNEL_ID" '{ error: $error, slack_id: $slack_channel_id }')
+          JSON_PAYLOAD=$(jq -n --arg error "$ERROR_DETAILS" --arg slack_channel_id "$SLACK_CHANNEL_ID" '{ error: $error, slack_channel_id: $slack_channel_id }')
 
           echo "=== SENDING TO LLM SERVER ==="
           echo "$JSON_PAYLOAD"
