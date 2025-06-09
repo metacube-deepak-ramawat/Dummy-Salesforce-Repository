@@ -1,6 +1,5 @@
 public class DemoMath {
-    // test comment
-// test comment
+    // test 1
     public static Integer add(Integer a, Integer b) {
         return a + b;
     }
