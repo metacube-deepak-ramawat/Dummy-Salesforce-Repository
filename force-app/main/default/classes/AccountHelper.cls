@@ -1,5 +1,6 @@
 public with sharing class AccountHelper {
     // Method to create an Account
+    // this is a demo comment
     public static Account createAccount(String name) {
         // blank name check
         if (String.isBlank(name)) {
