@@ -1,6 +1,5 @@
 @isTest
 public class DemoMathTest {
-    //Test comment
     @isTest
     static void testAdd() {
         Integer result1 = DemoMath.add(5, 3);
