@@ -27,236 +27,231 @@ jobs:
       - name: Confirm authentication
         run: sf org list
 
+      - name: Debug - Show project structure
+        run: |
+          echo "=== PROJECT STRUCTURE ==="
+          find . -name "*.cls" -o -name "*.trigger" -o -name "*.xml" | head -20
+          echo ""
+          echo "=== SFDX PROJECT JSON ==="
+          cat sfdx-project.json || echo "No sfdx-project.json found"
+          echo ""
+
       - name: Create test-results directory
         run: mkdir -p test-results
 
-      - name: Validate deployment with tests (same as main workflow)
+      - name: Validate deployment with tests and enhanced error capture
         run: |
+          echo "Starting deployment validation..."
           sf project deploy start \
             --dry-run \
             --wait 20 \
             --target-org my-org \
             --ignore-conflicts \
             --test-level RunLocalTests \
-            --json > test-results/deploy-validation.json || true
+            --verbose \
+            --json > test-results/deploy-validation.json 2>&1 || true
+          
+          echo "Deployment validation command completed with exit code: $?"
       
       - name: Debug - Show deployment validation result
-        run: cat test-results/deploy-validation.json
-
-      - name: Extract and check test results
         run: |
-          # Check if deployment validation succeeded
-          deploySuccess=$(jq -r '.result.success // false' test-results/deploy-validation.json)
+          echo "=== RAW DEPLOYMENT VALIDATION RESULT ==="
+          cat test-results/deploy-validation.json
+          echo ""
+          echo "=== FILE SIZE AND TYPE ==="
+          ls -la test-results/deploy-validation.json
+          echo ""
+
+      - name: Enhanced error detection and analysis
+        run: |
+          echo "=== ENHANCED DEPLOYMENT ANALYSIS ==="
           
-          # Extract test results
-          if jq -e '.result.details.runTestResult' test-results/deploy-validation.json >/dev/null; then
-            numFailures=$(jq '.result.details.runTestResult.numFailures // 0' test-results/deploy-validation.json)
-            numTestsRun=$(jq '.result.details.runTestResult.numTestsRun // 0' test-results/deploy-validation.json)
-            
-            echo "Deployment validation success: $deploySuccess"
-            echo "Tests run: $numTestsRun"
-            echo "Test failures: $numFailures"
-            
-            if [ "$numFailures" -gt 0 ]; then
-              echo "=== FAILED TESTS ==="
-              jq '.result.details.runTestResult.failures[]' test-results/deploy-validation.json
-              echo "=== END FAILED TESTS ==="
-              exit 1
-            fi
-          else
-            echo "No test results found in deployment validation"
-          fi
-          
-          if [ "$deploySuccess" != "true" ]; then
-            echo "Deployment validation failed"
+          # Check if the JSON file is valid
+          if ! jq empty test-results/deploy-validation.json 2>/dev/null; then
+            echo "❌ ERROR: Invalid JSON in deployment result"
+            echo "Raw content:"
+            cat test-results/deploy-validation.json
             exit 1
           fi
           
-          echo "All tests passed and deployment validation successful!"
+          # Extract basic deployment info
+          deploySuccess=$(jq -r '.result.success // false' test-results/deploy-validation.json)
+          deployDone=$(jq -r '.result.done // false' test-results/deploy-validation.json)
+          deployId=$(jq -r '.result.id // "N/A"' test-results/deploy-validation.json)
+          
+          echo "Deployment ID: $deployId"
+          echo "Deployment Done: $deployDone"
+          echo "Deployment Success: $deploySuccess"
+          
+          # Check for component failures (compilation errors)
+          componentFailures=$(jq '.result.details.componentFailures // []' test-results/deploy-validation.json)
+          numComponentFailures=$(echo "$componentFailures" | jq 'length')
+          
+          echo "Component failures count: $numComponentFailures"
+          
+          if [ "$numComponentFailures" -gt 0 ]; then
+            echo ""
+            echo "=== COMPONENT FAILURES (Compilation Errors) ==="
+            jq -r '.result.details.componentFailures[]? | 
+              "❌ Component: " + .fullName + 
+              "\n   Type: " + .componentType + 
+              "\n   Problem: " + .problem + 
+              "\n   Line: " + (.lineNumber // "N/A" | tostring) + 
+              "\n   Column: " + (.columnNumber // "N/A" | tostring) + 
+              "\n"' test-results/deploy-validation.json
+          fi
+          
+          # Check for test results
+          if jq -e '.result.details.runTestResult' test-results/deploy-validation.json >/dev/null; then
+            numFailures=$(jq '.result.details.runTestResult.numFailures // 0' test-results/deploy-validation.json)
+            numTestsRun=$(jq '.result.details.runTestResult.numTestsRun // 0' test-results/deploy-validation.json)
+            totalTime=$(jq -r '.result.details.runTestResult.totalTime // "N/A"' test-results/deploy-validation.json)
+            
+            echo ""
+            echo "=== TEST EXECUTION SUMMARY ==="
+            echo "Tests run: $numTestsRun"
+            echo "Test failures: $numFailures"
+            echo "Total time: $totalTime"
+            
+            if [ "$numFailures" -gt 0 ]; then
+              echo ""
+              echo "=== FAILED TESTS ==="
+              jq -r '.result.details.runTestResult.failures[]? | 
+                "❌ Test: " + .name + 
+                "\n   Class: " + (.namespace // "") + "." + .name + 
+                "\n   Method: " + (.methodName // "N/A") +
+                "\n   Message: " + .message + 
+                "\n   Stack Trace: " + (.stackTrace // "N/A") + 
+                "\n"' test-results/deploy-validation.json
+            fi
+          else
+            echo ""
+            echo "⚠️  No test results found - this usually means compilation failed"
+          fi
+          
+          # Check for general deployment errors
+          if jq -e '.result.details.componentSuccesses' test-results/deploy-validation.json >/dev/null; then
+            numSuccesses=$(jq '.result.details.componentSuccesses | length' test-results/deploy-validation.json)
+            echo ""
+            echo "=== DEPLOYMENT SUMMARY ==="
+            echo "Components successfully validated: $numSuccesses"
+          fi
+          
+          # Look for any error messages in the result
+          errorMsg=$(jq -r '.message // .error.message // empty' test-results/deploy-validation.json)
+          if [ ! -z "$errorMsg" ]; then
+            echo ""
+            echo "=== ERROR MESSAGE ==="
+            echo "$errorMsg"
+          fi
+          
+          # Check deployment status more thoroughly
+          if [ "$deploySuccess" != "true" ]; then
+            echo ""
+            echo "🚨 DEPLOYMENT VALIDATION FAILED"
+            echo "This usually means one of the following:"
+            echo "1. Compilation errors in Apex classes or triggers"
+            echo "2. Missing dependencies or references"  
+            echo "3. Invalid metadata or configuration"
+            echo "4. Insufficient permissions"
+            echo ""
+            exit 1
+          fi
+          
+          if [ "$numFailures" -gt 0 ]; then
+            echo ""
+            echo "🚨 TESTS FAILED"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All validations passed successfully!"
 
-      - name: Send error to LLM for analysis on failure
+      - name: Send comprehensive error analysis to LLM on failure
         if: failure()
         run: |
-          # Extract error details
-          ERROR_DETAILS=$(jq -r '
-            if .result.details.runTestResult.failures then
-              "SALESFORCE TEST FAILURES:\n" + 
-              (.result.details.runTestResult.failures[] | 
-                "❌ Test: " + .name + "\n" +
-                "   Class: " + (.namespace // "") + "." + .name + "\n" +
-                "   Message: " + .message + "\n" +
-                "   Stack Trace: " + (.stackTrace // "N/A") + "\n"
-              )
-            else
-              "DEPLOYMENT VALIDATION FAILED:\n" + (.result.details.componentFailures[]? | 
-                "❌ Component: " + .fullName + "\n" +
-                "   Problem: " + .problem + "\n"
-              )
-            end
-          ' test-results/deploy-validation.json)
-
-          # Escape the error text as a JSON string
-          JSON_PAYLOAD=$(jq -n --arg error "$ERROR_DETAILS" '{ error: $error }')
-
+          echo "=== PREPARING COMPREHENSIVE ERROR ANALYSIS ==="
+          
+          # Create a comprehensive error report
+          ERROR_REPORT=$(cat << 'EOF'
+          {
+            "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
+            "repository": "'${{ github.repository }}'",
+            "pull_request": "'${{ github.event.pull_request.number }}'",
+            "commit_sha": "'${{ github.sha }}'",
+            "workflow_run_id": "'${{ github.run_id }}'",
+            "salesforce_org": "'${{ secrets.SF_ORG_URL }}'",
+            "deployment_result": null,
+            "project_structure": null,
+            "error_summary": ""
+          }
+          EOF
+          )
+          
+          # Add deployment result to report
+          DEPLOYMENT_JSON=$(cat test-results/deploy-validation.json | jq -c .)
+          ERROR_REPORT=$(echo "$ERROR_REPORT" | jq --argjson deploy "$DEPLOYMENT_JSON" '.deployment_result = $deploy')
+          
+          # Add project structure
+          PROJECT_STRUCTURE=$(find . -name "*.cls" -o -name "*.trigger" -o -name "*.xml" | head -20 | jq -R . | jq -s .)
+          ERROR_REPORT=$(echo "$ERROR_REPORT" | jq --argjson structure "$PROJECT_STRUCTURE" '.project_structure = $structure')
+          
+          # Generate error summary
+          SUMMARY="Salesforce deployment validation failed. "
+          if jq -e '.deployment_result.result.details.componentFailures[]?' <<< "$ERROR_REPORT" >/dev/null; then
+            SUMMARY+="Found compilation errors in components. "
+          fi
+          if jq -e '.deployment_result.result.details.runTestResult.failures[]?' <<< "$ERROR_REPORT" >/dev/null; then
+            SUMMARY+="Found test failures. "
+          fi
+          if [ "$(jq -r '.deployment_result.result.details.runTestResult.numTestsRun // 0' <<< "$ERROR_REPORT")" = "0" ]; then
+            SUMMARY+="No tests were executed (likely due to compilation errors). "
+          fi
+          
+          ERROR_REPORT=$(echo "$ERROR_REPORT" | jq --arg summary "$SUMMARY" '.error_summary = $summary')
+          
           echo "=== SENDING TO LLM SERVER ==="
-          echo "$JSON_PAYLOAD"
-
-          # Send the error details to your server
-          RESPONSE=$(curl -s -X POST https://c08b-203-129-200-122.ngrok-free.app/agents/cirus/analyze \
+          echo "$ERROR_REPORT" | jq .
+          
+          # Send to your analysis server
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST https://c08b-203-129-200-122.ngrok-free.app/agents/cirus/analyze \
             -H "Content-Type: application/json" \
-            -d "$JSON_PAYLOAD")
-
-          echo "=== AI ANALYSIS & SOLUTIONS ==="
-          echo "$RESPONSE"
-
-
-          # # Send to Claude API
-          # CLAUDE_RESPONSE=$(curl -s -X POST "https://api.anthropic.com/v1/messages" \
-          #   -H "Content-Type: application/json" \
-          #   -H "x-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" \
-          #   -H "anthropic-version: 2023-06-01" \
-          #   -d @claude_request.json)
+            -H "Accept: application/json" \
+            -d "$ERROR_REPORT" || echo "CURL_FAILED")
           
-          # # Extract Claude's response
-          # LLM_RESPONSE=$(echo "$CLAUDE_RESPONSE" | jq -r '.content[0].text // .error.message // "No response from Claude"')
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1 | cut -d: -f2)
+          RESPONSE_BODY=$(echo "$RESPONSE" | sed '$ d')
           
-          # echo "=== AI ANALYSIS & SOLUTIONS ==="
-          # echo "$LLM_RESPONSE"
-
-# name: Salesforce Authentication and Test Validation
-
-# on:
-#   pull_request:
-#     types: [opened, synchronize, reopened]
-#     branches: [main]
-
-# jobs:
-#   auth-and-test-salesforce:
-#     runs-on: ubuntu-latest
-
-#     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v3
-
-#       - name: Install Salesforce CLI (@salesforce/cli)
-#         run: npm install --global @salesforce/cli
-
-#       - name: Install jq (JSON processor)
-#         run: sudo apt-get update && sudo apt-get install -y jq
-
-#       - name: Write JWT Key from Secret
-#         run: echo "${{ secrets.SF_JWT_KEY }}" > server.key
-
-#       - name: Authenticate to Salesforce using JWT
-#         run: sf org login jwt --client-id "${{ secrets.SF_CLIENT_ID }}" --jwt-key-file server.key --username "${{ secrets.SF_USERNAME }}" --instance-url "${{ secrets.SF_ORG_URL }}" --set-default --alias my-org
-
-#       - name: Confirm authentication
-#         run: sf org list
-
-#       - name: Create test-results directory
-#         run: mkdir -p test-results
-
-#       # - name: Run all Apex tests and save JSON result
-#       #   run: |
-#       #     sf apex test run --test-level RunLocalTests \
-#       #       --wait 20 \
-#       #       --target-org my-org \
-#       #       --json > test-results/test-result.json
-      
-#       - name: Run all Apex tests and save JSON result
-#         run: |
-#           sf apex test run --test-level RunAllTestsInOrg \
-#             --wait 20 \
-#             --target-org my-org \
-#             --json > test-results/test-result.json
-
-#       - name: Debug - Show test result JSON
-#         run: cat test-results/test-result.json
-
-
-#       - name: Fail job if any test fails
-#         run: |
-#           numFailures=$(jq '.result.summary.failing' test-results/test-result.json)
-#           if [ "$numFailures" -gt 0 ]; then
-#             echo "$numFailures test(s) failed."
-#             exit 1
-#           else
-#             echo "All tests passed."
-#           fi
-
-
-# name: Salesforce Authentication and Test Validation
-
-# on:
-#   pull_request:
-#     types: [opened, synchronize, reopened]
-
-# jobs:
-#   auth-and-test-salesforce:
-#     runs-on: ubuntu-latest
-
-#     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v3
-
-#       - name: Install Salesforce CLI (@salesforce/cli)
-#         run: npm install --global @salesforce/cli
-
-#       - name: Install jq (JSON processor)
-#         run: sudo apt-get update && sudo apt-get install -y jq
-
-#       - name: Write JWT Key from Secret
-#         run: echo "${{ secrets.SF_JWT_KEY }}" > server.key
-
-#       - name: Authenticate to Salesforce using JWT
-#         run: sf org login jwt --client-id "${{ secrets.SF_CLIENT_ID }}" --jwt-key-file server.key --username "${{ secrets.SF_USERNAME }}" --instance-url "${{ secrets.SF_ORG_URL }}" --set-default --alias my-org
-
-#       - name: Confirm authentication
-#         run: sf org list
-
-#       - name: Create test-results directory
-#         run: mkdir -p test-results
-
-#       - name: Validate deployment with tests (same as main workflow)
-#         run: |
-#           sf project deploy start \
-#             --dry-run \
-#             --wait 20 \
-#             --target-org my-org \
-#             --ignore-conflicts \
-#             --test-level RunLocalTests \
-#             --json > test-results/deploy-validation.json || true
-      
-#       - name: Debug - Show deployment validation result
-#         run: cat test-results/deploy-validation.json
-
-#       - name: Extract and check test results
-#         run: |
-#           # Check if deployment validation succeeded
-#           deploySuccess=$(jq -r '.result.success // false' test-results/deploy-validation.json)
+          echo ""
+          echo "=== LLM ANALYSIS RESPONSE (HTTP $HTTP_STATUS) ==="
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "$RESPONSE_BODY" | jq -r '.analysis // .message // .' 2>/dev/null || echo "$RESPONSE_BODY"
+          else
+            echo "❌ Failed to get analysis from LLM server"
+            echo "Response: $RESPONSE_BODY"
+          fi
           
-#           # Extract test results
-#           if jq -e '.result.details.runTestResult' test-results/deploy-validation.json >/dev/null; then
-#             numFailures=$(jq '.result.details.runTestResult.numFailures // 0' test-results/deploy-validation.json)
-#             numTestsRun=$(jq '.result.details.runTestResult.numTestsRun // 0' test-results/deploy-validation.json)
-            
-#             echo "Deployment validation success: $deploySuccess"
-#             echo "Tests run: $numTestsRun"
-#             echo "Test failures: $numFailures"
-            
-#             if [ "$numFailures" -gt 0 ]; then
-#               echo "=== FAILED TESTS ==="
-#               jq '.result.details.runTestResult.failures[]' test-results/deploy-validation.json
-#               echo "=== END FAILED TESTS ==="
-#               exit 1
-#             fi
-#           else
-#             echo "No test results found in deployment validation"
-#           fi
+          # Also create a simple summary for GitHub
+          echo ""
+          echo "=== QUICK ERROR SUMMARY FOR DEVELOPERS ==="
+          if jq -e '.result.details.componentFailures[]?' test-results/deploy-validation.json >/dev/null; then
+            echo "🚨 COMPILATION ERRORS FOUND:"
+            jq -r '.result.details.componentFailures[]? | "  • " + .fullName + ": " + .problem' test-results/deploy-validation.json
+          fi
           
-#           if [ "$deploySuccess" != "true" ]; then
-#             echo "Deployment validation failed"
-#             exit 1
-#           fi
+          if jq -e '.result.details.runTestResult.failures[]?' test-results/deploy-validation.json >/dev/null; then
+            echo "🚨 TEST FAILURES FOUND:"
+            jq -r '.result.details.runTestResult.failures[]? | "  • " + .name + ": " + .message' test-results/deploy-validation.json
+          fi
           
-#           echo "All tests passed and deployment validation successful!"
+          if [ "$(jq -r '.result.details.runTestResult.numTestsRun // 0' test-results/deploy-validation.json)" = "0" ]; then
+            echo "⚠️  NO TESTS EXECUTED - Check for compilation errors above"
+          fi
+
+      - name: Upload test results as artifact
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: salesforce-test-results
+          path: test-results/
+          retention-days: 30
