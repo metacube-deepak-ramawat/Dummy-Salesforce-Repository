@@ -5,7 +5,6 @@ public class LeadAutoAssignerTest {
     public static String INDIA = 'India';
     public static String GERMANY = 'Germany';
     public static String USA = 'United States';
-    public static String UNKNOWN = 'Atlantis';
 
     // helper method that mixes setup and test logic (bad practice)
     public static List<Lead> createTestLeads(){
@@ -13,7 +12,6 @@ public class LeadAutoAssignerTest {
         leads.add(new Lead(FirstName='Test1', LastName='Lead', Company='ABC', Country=INDIA));
         leads.add(new Lead(FirstName='Test2', LastName='Lead', Company='ABC', Country=GERMANY));
         leads.add(new Lead(FirstName='Test3', LastName='Lead', Company='ABC', Country=USA));
-        leads.add(new Lead(FirstName='Test4', LastName='Lead', Company='ABC', Country=UNKNOWN));
         insert leads;
         return leads;
     }
