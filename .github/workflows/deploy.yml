@@ -1,5 +1,4 @@
 name: Deploy to Salesforce on Main Merge
-
 on:
   push:
     branches:
@@ -8,20 +7,19 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
+        
       - name: Install Salesforce CLI (@salesforce/cli)
         run: npm install --global @salesforce/cli
-
+        
       - name: Install jq (JSON processor)
         run: sudo apt-get update && sudo apt-get install -y jq
-
+        
       - name: Write JWT Key from Secret
         run: echo "${{ secrets.SF_JWT_KEY }}" > server.key
-
+        
       - name: Authenticate to Salesforce using JWT
         run: |
           sf org login jwt \
@@ -31,11 +29,85 @@ jobs:
           --instance-url "${{ secrets.SF_ORG_URL }}" \
           --set-default \
           --alias my-org
-
-
+          
       - name: Confirm authentication
         run: sf org list
-
+        
+      - name: Check project structure
+        run: |
+          echo "=== Project Structure ==="
+          find . -name "*.cls" -o -name "*.trigger" -o -name "*.xml" | head -20
+          echo "=== sfdx-project.json ==="
+          cat sfdx-project.json 2>/dev/null || echo "No sfdx-project.json found"
+          
+      - name: Validate deployment first
+        run: |
+          echo "=== Starting Deployment Validation ==="
+          sf project deploy validate \
+          --target-org my-org \
+          --test-level RunLocalTests \
+          --wait 20 \
+          --json > validation-result.json
+          
+          echo "=== Validation Result ==="
+          cat validation-result.json
+          
+      - name: Check validation results
+        run: |
+          # Check if validation succeeded
+          deploySuccess=$(jq -r '.result.success // false' validation-result.json)
+          
+          echo "Deployment validation success: $deploySuccess"
+          
+          # Show any errors
+          if jq -e '.result.details.componentFailures' validation-result.json >/dev/null; then
+            echo "=== COMPONENT FAILURES ==="
+            jq '.result.details.componentFailures[]' validation-result.json
+            echo "=== END COMPONENT FAILURES ==="
+          fi
+          
+          # Show test results if available
+          if jq -e '.result.details.runTestResult' validation-result.json >/dev/null; then
+            numFailures=$(jq '.result.details.runTestResult.numFailures // 0' validation-result.json)
+            numTestsRun=$(jq '.result.details.runTestResult.numTestsRun // 0' validation-result.json)
+            
+            echo "Tests run: $numTestsRun"
+            echo "Test failures: $numFailures"
+            
+            if [ "$numFailures" -gt 0 ]; then
+              echo "=== FAILED TESTS ==="
+              jq '.result.details.runTestResult.failures[]' validation-result.json
+              echo "=== END FAILED TESTS ==="
+            fi
+          else
+            echo "No test results found in deployment validation"
+          fi
+          
+          # Exit if validation failed
+          if [ "$deploySuccess" != "true" ]; then
+            echo "Deployment validation failed - check errors above"
+            exit 1
+          fi
+          
       - name: Deploy source to Salesforce
         run: |
-          sf project deploy start --wait 20 --target-org my-org --ignore-conflicts --test-level RunLocalTests
+          echo "=== Starting Actual Deployment ==="
+          sf project deploy start \
+          --target-org my-org \
+          --test-level RunLocalTests \
+          --wait 20 \
+          --json > deploy-result.json
+          
+          echo "=== Deploy Result ==="
+          cat deploy-result.json
+          
+      - name: Check deployment results
+        run: |
+          deploySuccess=$(jq -r '.result.success // false' deploy-result.json)
+          
+          if [ "$deploySuccess" = "true" ]; then
+            echo "✅ Deployment successful!"
+          else
+            echo "❌ Deployment failed - check errors above"
+            exit 1
+          fi
