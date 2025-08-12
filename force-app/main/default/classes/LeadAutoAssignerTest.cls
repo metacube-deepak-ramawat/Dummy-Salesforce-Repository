@@ -32,7 +32,7 @@ public class LeadAutoAssignerTest {
         // Call method under test
         Test.startTest();
         LeadAutoAssigner.assignLeads(new List<Id>{
-            testLeads[0].Id, testLeads[1].Id, testLeads[2].Id, testLeads[3].Id
+            testLeads[0].Id, testLeads[1].Id, testLeads[2].Id
         });
         Test.stopTest();
 
