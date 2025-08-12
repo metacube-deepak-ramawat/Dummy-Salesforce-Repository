@@ -67,7 +67,24 @@ jobs:
             # ------------------------
             # CODE COVERAGE CHECK (minimum 30%)
             # ------------------------
-            totalCoverage=$(jq '.result.details.runTestResult.codeCoverage.aggregatePercent // 0' test-results/deploy-validation.json)
+            totalCoverage=$(jq -r '
+              if (.result.details.runTestResult.codeCoverage | type) == "array" then
+                ( [ .result.details.runTestResult.codeCoverage[] |
+                    ( .numLocations - .numLocationsNotCovered )
+                  ] | add ) as $covered
+                | ( [ .result.details.runTestResult.codeCoverage[] |
+                    .numLocations
+                  ] | add ) as $total
+                | if $total > 0 then
+                    (($covered / $total) * 100)
+                  else
+                    0
+                  end
+              else
+                0
+              end
+            ' test-results/deploy-validation.json)
+
             echo "Total Code Coverage: $totalCoverage%"
 
             MIN_COVERAGE=30
