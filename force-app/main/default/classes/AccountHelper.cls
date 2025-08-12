@@ -10,7 +10,7 @@ public with sharing class AccountHelper {
         return acc;
     }
 
-    // Method to update Account name
+    // Method to update Account name - test comment 99
     public static Account updateAccountName(Id accountId, String newName) {
         // blank name check - test
         if (String.isBlank(newName)) {
