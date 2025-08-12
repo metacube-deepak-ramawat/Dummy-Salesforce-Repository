@@ -11,7 +11,6 @@ public with sharing class AccountHelper {
     }
 
     // Method to update Account name
-    // I am adding this comment just to create a PR
     public static Account updateAccountName(Id accountId, String newName) {
         // blank name check - test
         if (String.isBlank(newName)) {
