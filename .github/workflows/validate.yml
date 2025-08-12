@@ -1,4 +1,4 @@
-	name: Salesforce Authentication and Test Validation
+name: Salesforce Authentication and Test Validation
 
 on:
   pull_request:
