@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-jobs: 
+jobs:
   auth-and-test-salesforce:
     runs-on: ubuntu-latest
 
@@ -45,7 +45,7 @@ jobs:
 
       - name: Extract and check test results
         run: |
-          # Fallback: use .status if .result.success is missing
+          # Use .status if .result.success is missing
           deploySuccess=$(jq -r '.result.success // (.status == 0)' test-results/deploy-validation.json)
 
           # Extract test results
@@ -56,6 +56,13 @@ jobs:
             echo "Deployment validation success: $deploySuccess"
             echo "Tests run: $numTestsRun"
             echo "Test failures: $numFailures"
+
+            # Show code coverage warnings if present
+            if jq -e '.result.details.runTestResult.codeCoverageWarnings' test-results/deploy-validation.json >/dev/null; then
+              echo "=== CODE COVERAGE WARNINGS ==="
+              jq -r '.result.details.runTestResult.codeCoverageWarnings[] | "⚠️  " + .message' test-results/deploy-validation.json
+              echo "=== END CODE COVERAGE WARNINGS ==="
+            fi
             
             if [ "$numFailures" -gt 0 ]; then
               echo "=== FAILED TESTS ==="
