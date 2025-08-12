@@ -78,10 +78,16 @@ jobs:
           deploySuccess=$(jq -r '.result.success // false' test-results/deploy-validation.json)
           deployDone=$(jq -r '.result.done // false' test-results/deploy-validation.json)
           deployId=$(jq -r '.result.id // "N/A"' test-results/deploy-validation.json)
+          deployStatus=$(jq -r '.result.status // "Unknown"' test-results/deploy-validation.json)
+          numErrors=$(jq -r '.result.numberComponentErrors // 0' test-results/deploy-validation.json)
+          numDeployed=$(jq -r '.result.numberComponentsDeployed // 0' test-results/deploy-validation.json)
+          numTotal=$(jq -r '.result.numberComponentsTotal // 0' test-results/deploy-validation.json)
           
           echo "Deployment ID: $deployId"
+          echo "Deployment Status: $deployStatus"
           echo "Deployment Done: $deployDone"
           echo "Deployment Success: $deploySuccess"
+          echo "Components: $numDeployed/$numTotal deployed, $numErrors errors"
           
           # Check for component failures (compilation errors)
           componentFailures=$(jq '.result.details.componentFailures // []' test-results/deploy-validation.json)
@@ -91,14 +97,29 @@ jobs:
           
           if [ "$numComponentFailures" -gt 0 ]; then
             echo ""
-            echo "=== COMPONENT FAILURES (Compilation Errors) ==="
+            echo "=== 🚨 COMPONENT FAILURES (Compilation Errors) ==="
             jq -r '.result.details.componentFailures[]? | 
-              "❌ Component: " + .fullName + 
-              "\n   Type: " + .componentType + 
-              "\n   Problem: " + .problem + 
-              "\n   Line: " + (.lineNumber // "N/A" | tostring) + 
-              "\n   Column: " + (.columnNumber // "N/A" | tostring) + 
+              "❌ Component: " + .fullName + " (" + .componentType + ")" +
+              "\n   📁 File: " + .fileName + 
+              "\n   🐛 Problem: " + .problem + 
+              "\n   📊 Problem Type: " + .problemType +
+              (if .lineNumber then "\n   📍 Line: " + (.lineNumber | tostring) else "" end) +
+              (if .columnNumber then "\n   📍 Column: " + (.columnNumber | tostring) else "" end) +
               "\n"' test-results/deploy-validation.json
+            
+            echo "=== 🔧 QUICK FIX SUGGESTIONS ==="
+            jq -r '.result.details.componentFailures[]? | 
+              if (.problem | contains("deprecated")) then
+                "🔹 " + .fullName + ": Remove @deprecated annotation or use comments instead"
+              elif (.problem | contains("duplicate")) then
+                "🔹 " + .fullName + ": Check for duplicate method/variable names"
+              elif (.problem | contains("Invalid type")) then
+                "🔹 " + .fullName + ": Check data types and imports"
+              elif (.problem | contains("Method does not exist")) then
+                "🔹 " + .fullName + ": Check method names and parameters"
+              else
+                "🔹 " + .fullName + ": Check syntax and references"
+              end' test-results/deploy-validation.json
           fi
           
           # Check for test results
