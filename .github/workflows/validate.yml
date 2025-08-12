@@ -22,7 +22,13 @@ jobs:
         run: echo "${{ secrets.SF_JWT_KEY }}" > server.key
 
       - name: Authenticate to Salesforce using JWT
-        run: sf org login jwt --client-id "${{ secrets.SF_CLIENT_ID }}" --jwt-key-file server.key --username "${{ secrets.SF_USERNAME }}" --instance-url "${{ secrets.SF_ORG_URL }}" --set-default --alias my-org
+        run: sf org login jwt \
+              --client-id "${{ secrets.SF_CLIENT_ID }}" \
+              --jwt-key-file server.key \
+              --username "${{ secrets.SF_USERNAME }}" \
+              --instance-url "${{ secrets.SF_ORG_URL }}" \
+              --set-default \
+              --alias my-org
 
       - name: Confirm authentication
         run: sf org list
@@ -62,6 +68,21 @@ jobs:
               echo "=== CODE COVERAGE WARNINGS ==="
               jq -r '.result.details.runTestResult.codeCoverageWarnings[] | "⚠️  " + .message' test-results/deploy-validation.json
               echo "=== END CODE COVERAGE WARNINGS ==="
+            fi
+
+            # ✅ Manual coverage check (threshold = 30%)
+            if jq -e '.result.details.runTestResult.codeCoverage' test-results/deploy-validation.json >/dev/null; then
+              avgCoverage=$(jq '[.result.details.runTestResult.codeCoverage[] | 
+                                select(.numLocations > 0) | 
+                                ((.numLocationsCovered / .numLocations) * 100)] 
+                                | add / length' test-results/deploy-validation.json)
+              echo "Average calculated coverage: ${avgCoverage}%"
+              
+              coverageThreshold=30
+              if (( $(echo "$avgCoverage < $coverageThreshold" | bc -l) )); then
+                echo "❌ Coverage below required threshold of ${coverageThreshold}%"
+                exit 1
+              fi
             fi
             
             if [ "$numFailures" -gt 0 ]; then
