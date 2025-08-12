@@ -66,7 +66,7 @@ jobs:
       - name: Debug - Show test result JSON
         run: cat test-results/test-result.json
 
-      - name: Fail if tests fail 
+      - name: Fail if tests fail
         run: |
           numFailures=$(jq '.result.summary.failing' test-results/test-result.json)
           if [ "$numFailures" -gt 0 ]; then
