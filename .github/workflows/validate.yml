@@ -1,4 +1,4 @@
-name: Salesforce Authentication and Test Validation
+name: Salesforce Authentication, Test Validation & Code Coverage Check
 
 on:
   pull_request:
@@ -22,13 +22,7 @@ jobs:
         run: echo "${{ secrets.SF_JWT_KEY }}" > server.key
 
       - name: Authenticate to Salesforce using JWT
-        run: sf org login jwt \
-              --client-id "${{ secrets.SF_CLIENT_ID }}" \
-              --jwt-key-file server.key \
-              --username "${{ secrets.SF_USERNAME }}" \
-              --instance-url "${{ secrets.SF_ORG_URL }}" \
-              --set-default \
-              --alias my-org
+        run: sf org login jwt --client-id "${{ secrets.SF_CLIENT_ID }}" --jwt-key-file server.key --username "${{ secrets.SF_USERNAME }}" --instance-url "${{ secrets.SF_ORG_URL }}" --set-default --alias my-org
 
       - name: Confirm authentication
         run: sf org list
@@ -36,6 +30,7 @@ jobs:
       - name: Create test-results directory
         run: mkdir -p test-results
 
+      # Validate deployment before running tests
       - name: Validate deployment with tests
         run: |
           sf project deploy start \
@@ -45,65 +40,47 @@ jobs:
             --ignore-conflicts \
             --test-level RunLocalTests \
             --json > test-results/deploy-validation.json || true
-      
+
       - name: Debug - Show deployment validation result
         run: cat test-results/deploy-validation.json
 
-      - name: Extract and check test results
+      - name: Extract and check deployment validation result
         run: |
-          # Use .status if .result.success is missing
-          deploySuccess=$(jq -r '.result.success // (.status == 0)' test-results/deploy-validation.json)
+          deploySuccess=$(jq -r '.result.success // false' test-results/deploy-validation.json)
 
-          # Extract test results
-          if jq -e '.result.details.runTestResult' test-results/deploy-validation.json >/dev/null; then
-            numFailures=$(jq '.result.details.runTestResult.numFailures // 0' test-results/deploy-validation.json)
-            numTestsRun=$(jq '.result.details.runTestResult.numTestsRun // 0' test-results/deploy-validation.json)
-            
-            echo "Deployment validation success: $deploySuccess"
-            echo "Tests run: $numTestsRun"
-            echo "Test failures: $numFailures"
-
-            # Show code coverage warnings if present
-            if jq -e '.result.details.runTestResult.codeCoverageWarnings' test-results/deploy-validation.json >/dev/null; then
-              echo "=== CODE COVERAGE WARNINGS ==="
-              jq -r '.result.details.runTestResult.codeCoverageWarnings[] | "⚠️  " + .message' test-results/deploy-validation.json
-              echo "=== END CODE COVERAGE WARNINGS ==="
-            fi
-
-            # ✅ Manual coverage check (threshold = 30%)
-            if jq -e '.result.details.runTestResult.codeCoverage' test-results/deploy-validation.json >/dev/null; then
-              avgCoverage=$(jq '[.result.details.runTestResult.codeCoverage[] | 
-                                select(.numLocations > 0) | 
-                                ((.numLocationsCovered / .numLocations) * 100)] 
-                                | add / length' test-results/deploy-validation.json)
-              echo "Average calculated coverage: ${avgCoverage}%"
-              
-              coverageThreshold=30
-              if (( $(echo "$avgCoverage < $coverageThreshold" | bc -l) )); then
-                echo "❌ Coverage below required threshold of ${coverageThreshold}%"
-                exit 1
-              fi
-            fi
-            
-            if [ "$numFailures" -gt 0 ]; then
-              echo "=== FAILED TESTS ==="
-              jq '.result.details.runTestResult.failures[]' test-results/deploy-validation.json
-              echo "=== END FAILED TESTS ==="
-              exit 1
-            fi
-          else
-            echo "No test results found in deployment validation"
-          fi
-
-          # If deploy failed, print component failures before exiting
           if [ "$deploySuccess" != "true" ]; then
-            echo "Deployment validation failed"
-            if jq -e '.result.details.componentFailures' test-results/deploy-validation.json >/dev/null; then
-              echo "=== COMPONENT FAILURES ==="
-              jq '.result.details.componentFailures[]' test-results/deploy-validation.json
-              echo "=== END COMPONENT FAILURES ==="
-            fi
+            echo "❌ Deployment validation failed."
             exit 1
           fi
-          
-          echo "All tests passed and deployment validation successful!"
+          echo "✅ Deployment validation successful."
+
+      # Run tests and check code coverage
+      - name: Run all Apex tests with code coverage
+        run: |
+          sf apex test run --test-level RunLocalTests \
+            --code-coverage \
+            --wait 20 \
+            --target-org my-org \
+            --json > test-results/test-result.json
+
+      - name: Debug - Show test result JSON
+        run: cat test-results/test-result.json
+
+      - name: Fail if tests fail
+        run: |
+          numFailures=$(jq '.result.summary.failing' test-results/test-result.json)
+          if [ "$numFailures" -gt 0 ]; then
+            echo "❌ $numFailures test(s) failed."
+            exit 1
+          fi
+          echo "✅ All tests passed."
+
+      - name: Check code coverage threshold (30%)
+        run: |
+          totalCoverage=$(jq '.result.coverage.coverageSummary.percentCovered // 0' test-results/test-result.json)
+          echo "📊 Total code coverage: ${totalCoverage}%"
+          if [ "$totalCoverage" -lt 30 ]; then
+            echo "❌ Code coverage is below the required 30% threshold."
+            exit 1
+          fi
+          echo "✅ Code coverage meets the threshold."
