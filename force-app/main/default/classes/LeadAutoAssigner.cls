@@ -57,7 +57,6 @@ public with sharing class LeadAutoAssigner {
     }
 
     // no test coverage for this class (separate file normally)
-    @Deprecated
     public static void legacyAssign(Lead l){
         if(l.Country == 'India'){
             l.OwnerId = UserInfo.getUserId();
