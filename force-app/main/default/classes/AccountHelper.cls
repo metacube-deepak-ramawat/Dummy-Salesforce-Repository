@@ -1,5 +1,5 @@
 public with sharing class AccountHelper {
-    // Method to create an Account - test comment
+    // Method to create an Account - test 
     public static Account createAccount(String name) {
         // blank name check
         if (String.isBlank(name)) {
@@ -10,7 +10,7 @@ public with sharing class AccountHelper {
         return acc;
     }
 
-    // Method to update Account name
+    // Method to update Account name - test
     public static Account updateAccountName(Id accountId, String newName) {
         // blank name check - test
         if (String.isBlank(newName)) {
