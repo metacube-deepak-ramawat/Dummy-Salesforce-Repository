@@ -3,7 +3,6 @@ public class DemoMathTest {
     //Test comment
     @isTest
     static void testAdd() {
-        // Test positive numbers
         Integer result1 = DemoMath.add(5, 3);
         System.assertEquals(8, result1, 'Addition of 5 + 3 should equal 8');
         
