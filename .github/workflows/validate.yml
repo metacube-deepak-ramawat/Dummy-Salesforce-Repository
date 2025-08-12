@@ -63,6 +63,21 @@ jobs:
               echo "=== END FAILED TESTS ==="
               exit 1
             fi
+
+            # ------------------------
+            # CODE COVERAGE CHECK (minimum 30%)
+            # ------------------------
+            totalCoverage=$(jq '.result.details.runTestResult.codeCoverage.aggregatePercent // 0' test-results/deploy-validation.json)
+            echo "Total Code Coverage: $totalCoverage%"
+
+            MIN_COVERAGE=30
+            if (( $(echo "$totalCoverage < $MIN_COVERAGE" | bc -l) )); then
+              echo "Code coverage ($totalCoverage%) is below minimum threshold of $MIN_COVERAGE%"
+              exit 1
+            else
+              echo "Code coverage meets minimum threshold of $MIN_COVERAGE%"
+            fi
+
           else
             echo "No test results found in deployment validation"
           fi
@@ -72,7 +87,7 @@ jobs:
             exit 1
           fi
           
-          echo "All tests passed and deployment validation successful!"
+          echo "All tests passed, deployment validation successful, and code coverage requirement met!"
 
       - name: Send error to LLM for analysis on failure
         if: failure()
@@ -108,155 +123,3 @@ jobs:
 
           echo "=== AI ANALYSIS & SOLUTIONS ==="
           echo "$RESPONSE"
-
-
-          # # Send to Claude API
-          # CLAUDE_RESPONSE=$(curl -s -X POST "https://api.anthropic.com/v1/messages" \
-          #   -H "Content-Type: application/json" \
-          #   -H "x-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" \
-          #   -H "anthropic-version: 2023-06-01" \
-          #   -d @claude_request.json)
-          
-          # # Extract Claude's response
-          # LLM_RESPONSE=$(echo "$CLAUDE_RESPONSE" | jq -r '.content[0].text // .error.message // "No response from Claude"')
-          
-          # echo "=== AI ANALYSIS & SOLUTIONS ==="
-          # echo "$LLM_RESPONSE"
-
-# name: Salesforce Authentication and Test Validation
-
-# on:
-#   pull_request:
-#     types: [opened, synchronize, reopened]
-#     branches: [main]
-
-# jobs:
-#   auth-and-test-salesforce:
-#     runs-on: ubuntu-latest
-
-#     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v3
-
-#       - name: Install Salesforce CLI (@salesforce/cli)
-#         run: npm install --global @salesforce/cli
-
-#       - name: Install jq (JSON processor)
-#         run: sudo apt-get update && sudo apt-get install -y jq
-
-#       - name: Write JWT Key from Secret
-#         run: echo "${{ secrets.SF_JWT_KEY }}" > server.key
-
-#       - name: Authenticate to Salesforce using JWT
-#         run: sf org login jwt --client-id "${{ secrets.SF_CLIENT_ID }}" --jwt-key-file server.key --username "${{ secrets.SF_USERNAME }}" --instance-url "${{ secrets.SF_ORG_URL }}" --set-default --alias my-org
-
-#       - name: Confirm authentication
-#         run: sf org list
-
-#       - name: Create test-results directory
-#         run: mkdir -p test-results
-
-#       # - name: Run all Apex tests and save JSON result
-#       #   run: |
-#       #     sf apex test run --test-level RunLocalTests \
-#       #       --wait 20 \
-#       #       --target-org my-org \
-#       #       --json > test-results/test-result.json
-      
-#       - name: Run all Apex tests and save JSON result
-#         run: |
-#           sf apex test run --test-level RunAllTestsInOrg \
-#             --wait 20 \
-#             --target-org my-org \
-#             --json > test-results/test-result.json
-
-#       - name: Debug - Show test result JSON
-#         run: cat test-results/test-result.json
-
-
-#       - name: Fail job if any test fails
-#         run: |
-#           numFailures=$(jq '.result.summary.failing' test-results/test-result.json)
-#           if [ "$numFailures" -gt 0 ]; then
-#             echo "$numFailures test(s) failed."
-#             exit 1
-#           else
-#             echo "All tests passed."
-#           fi
-
-
-# name: Salesforce Authentication and Test Validation
-
-# on:
-#   pull_request:
-#     types: [opened, synchronize, reopened]
-
-# jobs:
-#   auth-and-test-salesforce:
-#     runs-on: ubuntu-latest
-
-#     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v3
-
-#       - name: Install Salesforce CLI (@salesforce/cli)
-#         run: npm install --global @salesforce/cli
-
-#       - name: Install jq (JSON processor)
-#         run: sudo apt-get update && sudo apt-get install -y jq
-
-#       - name: Write JWT Key from Secret
-#         run: echo "${{ secrets.SF_JWT_KEY }}" > server.key
-
-#       - name: Authenticate to Salesforce using JWT
-#         run: sf org login jwt --client-id "${{ secrets.SF_CLIENT_ID }}" --jwt-key-file server.key --username "${{ secrets.SF_USERNAME }}" --instance-url "${{ secrets.SF_ORG_URL }}" --set-default --alias my-org
-
-#       - name: Confirm authentication
-#         run: sf org list
-
-#       - name: Create test-results directory
-#         run: mkdir -p test-results
-
-#       - name: Validate deployment with tests (same as main workflow)
-#         run: |
-#           sf project deploy start \
-#             --dry-run \
-#             --wait 20 \
-#             --target-org my-org \
-#             --ignore-conflicts \
-#             --test-level RunLocalTests \
-#             --json > test-results/deploy-validation.json || true
-      
-#       - name: Debug - Show deployment validation result
-#         run: cat test-results/deploy-validation.json
-
-#       - name: Extract and check test results
-#         run: |
-#           # Check if deployment validation succeeded
-#           deploySuccess=$(jq -r '.result.success // false' test-results/deploy-validation.json)
-          
-#           # Extract test results
-#           if jq -e '.result.details.runTestResult' test-results/deploy-validation.json >/dev/null; then
-#             numFailures=$(jq '.result.details.runTestResult.numFailures // 0' test-results/deploy-validation.json)
-#             numTestsRun=$(jq '.result.details.runTestResult.numTestsRun // 0' test-results/deploy-validation.json)
-            
-#             echo "Deployment validation success: $deploySuccess"
-#             echo "Tests run: $numTestsRun"
-#             echo "Test failures: $numFailures"
-            
-#             if [ "$numFailures" -gt 0 ]; then
-#               echo "=== FAILED TESTS ==="
-#               jq '.result.details.runTestResult.failures[]' test-results/deploy-validation.json
-#               echo "=== END FAILED TESTS ==="
-#               exit 1
-#             fi
-#           else
-#             echo "No test results found in deployment validation"
-#           fi
-          
-#           if [ "$deploySuccess" != "true" ]; then
-#             echo "Deployment validation failed"
-#             exit 1
-#           fi
-          
-#           echo "All tests passed and deployment validation successful!"
